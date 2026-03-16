@@ -162,6 +162,7 @@ function(ConfigureTest CMAKE_TEST_NAME)
         PRIVATE
             cuco::cuco
             cugraphtestutil
+            cudf
             GTest::gtest
             GTest::gtest_main
     )
@@ -169,9 +170,9 @@ function(ConfigureTest CMAKE_TEST_NAME)
         ${CMAKE_TEST_NAME}
             PROPERTIES RUNTIME_OUTPUT_DIRECTORY "$<BUILD_INTERFACE:${CUGRAPH_BINARY_DIR}/gtests>"
                        INSTALL_RPATH "\$ORIGIN/../../../lib"
-                       CXX_STANDARD                        17
+                       CXX_STANDARD                        20
                        CXX_STANDARD_REQUIRED               ON
-                       CUDA_STANDARD                       17
+                       CUDA_STANDARD                       20
                        CUDA_STANDARD_REQUIRED              ON
                        LINK_FLAGS "-Wl,--allow-shlib-undefined")
 
@@ -202,9 +203,9 @@ function(ConfigureTestMG CMAKE_TEST_NAME)
         ${CMAKE_TEST_NAME}
             PROPERTIES RUNTIME_OUTPUT_DIRECTORY "$<BUILD_INTERFACE:${CUGRAPH_BINARY_DIR}/gtests>"
                        INSTALL_RPATH "\$ORIGIN/../../../lib"
-                       CXX_STANDARD                        17
+                       CXX_STANDARD                        20
                        CXX_STANDARD_REQUIRED               ON
-                       CUDA_STANDARD                       17
+                       CUDA_STANDARD                       20
                        CUDA_STANDARD_REQUIRED              ON
                        LINK_FLAGS "-Wl,--allow-shlib-undefined")
 
@@ -256,9 +257,9 @@ function(ConfigureCTest CMAKE_TEST_NAME)
         ${CMAKE_TEST_NAME}
             PROPERTIES RUNTIME_OUTPUT_DIRECTORY "$<BUILD_INTERFACE:${CUGRAPH_BINARY_DIR}/gtests>"
                        INSTALL_RPATH "\$ORIGIN/../../../lib"
-                       CXX_STANDARD                        17
+                       CXX_STANDARD                        20
                        CXX_STANDARD_REQUIRED               ON
-                       CUDA_STANDARD                       17
+                       CUDA_STANDARD                       20
                        CUDA_STANDARD_REQUIRED              ON
                        LINK_FLAGS "-Wl,--allow-shlib-undefined")
 
@@ -291,9 +292,9 @@ function(ConfigureCTestMG CMAKE_TEST_NAME)
         ${CMAKE_TEST_NAME}
             PROPERTIES RUNTIME_OUTPUT_DIRECTORY "$<BUILD_INTERFACE:${CUGRAPH_BINARY_DIR}/gtests>"
                        INSTALL_RPATH "\$ORIGIN/../../../lib"
-                       CXX_STANDARD                        17
+                       CXX_STANDARD                        20
                        CXX_STANDARD_REQUIRED               ON
-                       CUDA_STANDARD                       17
+                       CUDA_STANDARD                       20
                        CUDA_STANDARD_REQUIRED              ON
                        LINK_FLAGS "-Wl,--allow-shlib-undefined")
 
@@ -566,6 +567,10 @@ ConfigureTest(LOOKUP_SRC_DST_TEST lookup/lookup_src_dst_test.cpp)
 # - K-hop Neighbors tests -------------------------------------------------------------------------
 ConfigureTest(K_HOP_NBRS_TEST traversal/k_hop_nbrs_test.cpp)
 
+###################################################################################################
+# - DFX logic simulation tests --------------------------------------------------------------------
+ConfigureTest(DFX_LOGIC_SIM_TEST collab/dfx_logic_sim_test.cu collab/dfx_logic_sim_io.cu)
+target_include_directories(DFX_LOGIC_SIM_TEST PRIVATE "${CUGRAPH_SOURCE_DIR}/src")
 
 ###################################################################################################
 # - install tests ---------------------------------------------------------------------------------

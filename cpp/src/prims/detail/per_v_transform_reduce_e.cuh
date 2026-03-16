@@ -320,7 +320,7 @@ __global__ static void per_v_transform_reduce_e_hypersparse(
                                            indices,
                                            edge_offset};
 
-      auto call_pred_op = init_pred_op<GraphViewType>(edge_partition,
+      auto call_pred_op = init_pred_op<GraphViewType, key_t>(edge_partition,
                                                       edge_partition_src_value_input,
                                                       edge_partition_dst_value_input,
                                                       edge_partition_e_value_input,
@@ -433,7 +433,7 @@ __global__ static void per_v_transform_reduce_e_low_degree(
                                          indices,
                                          edge_offset};
 
-    auto call_pred_op = init_pred_op<GraphViewType>(edge_partition,
+    auto call_pred_op = init_pred_op<GraphViewType, key_t>(edge_partition,
                                                     edge_partition_src_value_input,
                                                     edge_partition_dst_value_input,
                                                     edge_partition_e_value_input,
@@ -553,7 +553,7 @@ __global__ static void per_v_transform_reduce_e_mid_degree(
                                          indices,
                                          edge_offset};
 
-    auto call_pred_op = init_pred_op<GraphViewType>(edge_partition,
+    auto call_pred_op = init_pred_op<GraphViewType, key_t>(edge_partition,
                                                     edge_partition_src_value_input,
                                                     edge_partition_dst_value_input,
                                                     edge_partition_e_value_input,
@@ -744,7 +744,7 @@ __global__ static void per_v_transform_reduce_e_high_degree(
                                          indices,
                                          edge_offset};
 
-    auto call_pred_op = init_pred_op<GraphViewType>(edge_partition,
+    auto call_pred_op = init_pred_op<GraphViewType, key_t>(edge_partition,
                                                     edge_partition_src_value_input,
                                                     edge_partition_dst_value_input,
                                                     edge_partition_e_value_input,
