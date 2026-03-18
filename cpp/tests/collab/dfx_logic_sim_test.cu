@@ -2254,6 +2254,7 @@ class Tests_DfxLogicSim : public ::testing::TestWithParam<DfxLogicSim_Usecase> {
     cugraph::graph_view_t<vertex_t, edge_t, true, false> const& graph_view,
     raft::device_span<cell_idx_t const> node_cell_indices,
     raft::device_span<bool const> seq_cell_flags,
+    raft::device_span<vertex_t const> latch_flags,
     raft::device_span<vertex_t const> renumber_map)
   {
     using weight_t    = float;
@@ -2303,12 +2304,12 @@ class Tests_DfxLogicSim : public ::testing::TestWithParam<DfxLogicSim_Usecase> {
         cugraph::edge_dst_dummy_property_t{}.view(),
         cugraph::edge_dummy_property_t{}.view(),
         cuda::proclaim_return_type<bool>(
-          [node_cell_indices, seq_cell_flags] __device__(
+          [node_cell_indices, seq_cell_flags, latch_flags] __device__(
             auto src, auto dst, auto, auto, auto) {
             auto src_cell = node_cell_indices[src];
             auto dst_cell = node_cell_indices[dst];
-            bool src_ok   = (src_cell < 0) || !seq_cell_flags[src_cell];
-            bool dst_ok   = (dst_cell < 0) || !seq_cell_flags[dst_cell];
+            bool src_ok   = (src_cell < 0) || !(seq_cell_flags[src_cell] || latch_flags[src_cell]);
+            bool dst_ok   = (dst_cell < 0) || !(seq_cell_flags[dst_cell] || latch_flags[dst_cell]);
             return src_ok && dst_ok;
           }),
         edge_mask.mutable_view());
@@ -2629,66 +2630,69 @@ class Tests_DfxLogicSim : public ::testing::TestWithParam<DfxLogicSim_Usecase> {
           graph_view.number_of_vertices());
 
 
-      // rmm::device_uvector<int32_t> filtered_loop_ids(0, handle.get_stream());
+      rmm::device_uvector<int32_t> filtered_loop_ids_scc(0, handle.get_stream());
+      rmm::device_uvector<vertex_t> filtered_loop_nodes_scc(0, handle.get_stream());
 
-      // std::tie(filtered_loop_ids, filtered_loop_nodes) = detect_combinational_loops_via_scc<vertex_t, edge_t, cell_idx_t>(
-      //   handle,
-      //   graph_view,
-      //   raft::device_span<cell_idx_t const>(node_cell_map.node_cell_indices.data(),
-      //                                       node_cell_map.node_cell_indices.size()),
-      //   raft::device_span<bool const>(cell_flags.seq_cell_flags.data(),
-      //                                 cell_flags.seq_cell_flags.size()),
-      //   raft::device_span<vertex_t const>(renumber_map.data(), renumber_map.size()));
+      std::tie(filtered_loop_ids_scc, filtered_loop_nodes_scc) = detect_combinational_loops_via_scc<vertex_t, edge_t, cell_idx_t>(
+        handle,
+        graph_view,
+        raft::device_span<cell_idx_t const>(node_cell_map.node_cell_indices.data(),
+                                            node_cell_map.node_cell_indices.size()),
+        raft::device_span<bool const>(cell_flags.seq_cell_flags.data(),
+                                      cell_flags.seq_cell_flags.size()),
+        raft::device_span<bool const>(cell_flags.latch_flags.data(),
+                                      cell_flags.latch_flags.size()),
+        raft::device_span<vertex_t const>(renumber_map.data(), renumber_map.size()));
 
 
-      // cugraph::unrenumber_int_vertices<vertex_t, multi_gpu_>(
-      //   handle,
-      //   filtered_loop_nodes_scc.data(),
-      //   filtered_loop_nodes_scc.size(),
-      //   renumber_map.data(),
-      //   graph_view.vertex_partition_range_lasts());
+      cugraph::unrenumber_int_vertices<vertex_t, multi_gpu_>(
+        handle,
+        filtered_loop_nodes_scc.data(),
+        filtered_loop_nodes_scc.size(),
+        renumber_map.data(),
+        graph_view.vertex_partition_range_lasts());
 
-      // cugraph::unrenumber_int_vertices<vertex_t, multi_gpu_>(
-      //   handle,
-      //   filtered_loop_nodes.data(),
-      //   filtered_loop_nodes.size(),
-      //   renumber_map.data(),
-      //   graph_view.vertex_partition_range_lasts());
+      cugraph::unrenumber_int_vertices<vertex_t, multi_gpu_>(
+        handle,
+        filtered_loop_nodes.data(),
+        filtered_loop_nodes.size(),
+        renumber_map.data(),
+        graph_view.vertex_partition_range_lasts());
 
       // raft::print_device_vector("renumber_map", renumber_map.data(), renumber_map.size(), std::cout);
 
-      // Verify CSV-based and SCC-based loop detection identify the same node groups
-      // {
-      //   auto to_sorted_groups = [&handle](rmm::device_uvector<int32_t> const& ids,
-      //                                     rmm::device_uvector<vertex_t> const& nodes) {
-      //     std::vector<int32_t> h_ids(ids.size());
-      //     std::vector<vertex_t> h_nodes(nodes.size());
-      //     raft::update_host(h_ids.data(), ids.data(), ids.size(), handle.get_stream());
-      //     raft::update_host(h_nodes.data(), nodes.data(), nodes.size(), handle.get_stream());
-      //     handle.sync_stream();
+      Verify CSV-based and SCC-based loop detection identify the same node groups
+      {
+        auto to_sorted_groups = [&handle](rmm::device_uvector<int32_t> const& ids,
+                                          rmm::device_uvector<vertex_t> const& nodes) {
+          std::vector<int32_t> h_ids(ids.size());
+          std::vector<vertex_t> h_nodes(nodes.size());
+          raft::update_host(h_ids.data(), ids.data(), ids.size(), handle.get_stream());
+          raft::update_host(h_nodes.data(), nodes.data(), nodes.size(), handle.get_stream());
+          handle.sync_stream();
 
-      //     std::unordered_map<int32_t, std::vector<vertex_t>> groups;
-      //     for (size_t i = 0; i < h_ids.size(); ++i) {
-      //       groups[h_ids[i]].push_back(h_nodes[i]);
-      //     }
-      //     std::vector<std::vector<vertex_t>> result;
-      //     for (auto& [id, g] : groups) {
-      //       std::sort(g.begin(), g.end());
-      //       result.push_back(std::move(g));
-      //     }
-      //     std::sort(result.begin(), result.end());
-      //     return result;
-      //   };
+          std::unordered_map<int32_t, std::vector<vertex_t>> groups;
+          for (size_t i = 0; i < h_ids.size(); ++i) {
+            groups[h_ids[i]].push_back(h_nodes[i]);
+          }
+          std::vector<std::vector<vertex_t>> result;
+          for (auto& [id, g] : groups) {
+            std::sort(g.begin(), g.end());
+            result.push_back(std::move(g));
+          }
+          std::sort(result.begin(), result.end());
+          return result;
+        };
 
-      //   auto csv_groups = to_sorted_groups(filtered_loop_ids, filtered_loop_nodes);
-      //   auto scc_groups = to_sorted_groups(filtered_loop_ids_scc, filtered_loop_nodes_scc);
+        auto csv_groups = to_sorted_groups(filtered_loop_ids, filtered_loop_nodes);
+        auto scc_groups = to_sorted_groups(filtered_loop_ids_scc, filtered_loop_nodes_scc);
 
-      //   std::cout << "CSV loops: " << csv_groups.size()
-      //             << ", SCC loops: " << scc_groups.size() << std::endl;
+        std::cout << "CSV loops: " << csv_groups.size()
+                  << ", SCC loops: " << scc_groups.size() << std::endl;
 
-      //   ASSERT_EQ(csv_groups, scc_groups)
-      //     << "CSV and SCC loop detection identified different node groups.";
-      // }
+        ASSERT_EQ(csv_groups, scc_groups)
+          << "CSV and SCC loop detection identified different node groups.";
+      }
 
       // //Classify loops based on whether they are purely combinational or latches
       // {
